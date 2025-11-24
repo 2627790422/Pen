@@ -14,14 +14,14 @@ const styles = [
     id: RoastStyle.SHORT_PUNCHY, 
     label: '一针见血', 
     icon: Drama, 
-    desc: '一句话让对方破防',
+    desc: '贴吧老哥 / 极致嘴臭 / 破防打击',
     isHot: true 
   },
   { 
     id: 'ALL', 
-    label: '全能战神', 
+    label: '逻辑鬼才', 
     icon: Sparkles, 
-    desc: '各种角度花式吊打' 
+    desc: '逻辑漏洞 / 阴阳怪气 / 降维打击' 
   },
 ];
 

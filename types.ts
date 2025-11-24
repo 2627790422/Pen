@@ -5,17 +5,11 @@ export enum RoastStyle {
   SHORT_PUNCHY = '言简意赅', // Short, emotional damage
 }
 
-export interface Source {
-  title: string;
-  uri: string;
-}
-
 export interface RoastResponse {
+  id: string; // Added for list management
   style: string;
   content: string;
   attackPower: number; // 1-100
-  explanation?: string; // Why this works
-  sources?: Source[]; // Grounding sources
 }
 
 export interface HistoryItem {

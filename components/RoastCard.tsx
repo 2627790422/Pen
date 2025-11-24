@@ -1,15 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { RoastResponse } from '../types';
-import { Copy, Check, MessageCircleWarning, Ghost, Link2, Zap } from 'lucide-react';
+import { Copy, Check, MessageCircleWarning, Ghost, RefreshCw, Pencil, Save, X } from 'lucide-react';
 
 interface RoastCardProps {
   roast: RoastResponse;
   index: number;
   theme: 'sparkle' | 'mystic';
+  onUpdate: (id: string, newContent: string) => void;
+  onRegenerate: (id: string) => void;
+  isRegenerating: boolean;
 }
 
-export const RoastCard: React.FC<RoastCardProps> = ({ roast, index, theme }) => {
+export const RoastCard: React.FC<RoastCardProps> = ({ roast, index, theme, onUpdate, onRegenerate, isRegenerating }) => {
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(roast.content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      // Adjust height
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [isEditing]);
 
   const handleCopy = async () => {
     try {
@@ -21,12 +36,33 @@ export const RoastCard: React.FC<RoastCardProps> = ({ roast, index, theme }) => 
     }
   };
 
+  const handleSaveEdit = () => {
+    if (editContent.trim()) {
+      onUpdate(roast.id, editContent);
+    } else {
+      setEditContent(roast.content); // Revert if empty
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditContent(roast.content);
+    setIsEditing(false);
+  };
+
   const isSparkle = theme === 'sparkle';
 
   // Dynamic Theme Colors
   const borderColor = isSparkle ? 'group-hover:border-sparkle-primary' : 'group-hover:border-mystic-secondary';
   const labelBg = isSparkle ? 'bg-sparkle-card border-sparkle-muted text-sparkle-text' : 'bg-mystic-card border-mystic-primary/30 text-mystic-secondary';
-  const buttonClass = isSparkle 
+  
+  // Button Styles
+  const buttonBase = "p-1.5 rounded-full transition-colors duration-200 border border-transparent";
+  const actionButtonClass = isSparkle 
+    ? `${buttonBase} hover:bg-sparkle-primary/20 text-sparkle-text/70 hover:text-sparkle-text`
+    : `${buttonBase} hover:bg-mystic-primary/20 text-mystic-text/70 hover:text-mystic-text`;
+    
+  const copyButtonClass = isSparkle 
     ? 'bg-sparkle-primary/10 hover:bg-sparkle-primary text-sparkle-primary border-sparkle-primary/30' 
     : 'bg-mystic-primary/10 hover:bg-mystic-primary text-mystic-primary border-mystic-primary/30';
   
@@ -40,71 +76,84 @@ export const RoastCard: React.FC<RoastCardProps> = ({ roast, index, theme }) => 
 
   return (
     <div 
-      className={`bg-black/60 backdrop-blur-md border border-white/5 rounded-xl p-5 relative group hover:border-opacity-100 transition-all duration-300 shadow-lg animate-in fade-in slide-in-from-bottom-4 overflow-hidden ${borderColor}`}
-      style={{ animationDelay: `${index * 150}ms` }}
+      className={`bg-black/60 backdrop-blur-md border border-white/5 rounded-xl p-3 relative group hover:border-opacity-100 transition-all duration-300 shadow-lg animate-in fade-in slide-in-from-bottom-4 overflow-hidden ${borderColor}`}
+      style={{ animationDelay: `${index * 100}ms` }}
     >
       {/* Decorative Corner */}
-      <div className={`absolute -top-10 -right-10 w-20 h-20 blur-xl rounded-full transition-all duration-500 ${isSparkle ? 'bg-sparkle-primary/20 group-hover:bg-sparkle-primary/40' : 'bg-mystic-secondary/20 group-hover:bg-mystic-secondary/40'}`}></div>
+      <div className={`absolute -top-10 -right-10 w-20 h-20 blur-xl rounded-full transition-all duration-500 opacity-50 ${isSparkle ? 'bg-sparkle-primary/20 group-hover:bg-sparkle-primary/40' : 'bg-mystic-secondary/20 group-hover:bg-mystic-secondary/40'}`}></div>
 
-      {/* Header */}
-      <div className="flex justify-between items-start mb-3 relative z-10">
-        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${labelBg}`}>
+      {/* Header - Compact */}
+      <div className="flex justify-between items-center mb-2 relative z-10">
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${labelBg}`}>
           <Ghost className="w-3 h-3" />
           {roast.style}
         </span>
-        <div className={`flex items-center gap-1 px-2 py-1 rounded-md border ${powerStyle.bg} ${powerStyle.border}`}>
-          <MessageCircleWarning className={`w-4 h-4 ${powerStyle.color}`} />
-          <span className={`text-xs font-bold font-mono ${powerStyle.color}`}>
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded border ${powerStyle.bg} ${powerStyle.border}`}>
+          <MessageCircleWarning className={`w-3 h-3 ${powerStyle.color}`} />
+          <span className={`text-[10px] font-bold font-mono ${powerStyle.color}`}>
             ATK: {roast.attackPower}%
           </span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="mb-4 relative z-10">
-        <p className="text-lg md:text-xl font-bold text-gray-100 leading-relaxed font-sans tracking-wide">
-          "{roast.content}"
-        </p>
+      <div className="mb-2 relative z-10">
+        {isEditing ? (
+          <div className="space-y-2">
+            <textarea
+              ref={textareaRef}
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="w-full bg-black/40 text-white rounded p-2 text-base font-sans focus:outline-none focus:ring-1 focus:ring-white/30 resize-none overflow-hidden"
+              rows={2}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={handleCancelEdit} className="p-1 rounded hover:bg-white/10 text-gray-400">
+                <X className="w-4 h-4" />
+              </button>
+              <button onClick={handleSaveEdit} className={`p-1 rounded ${isSparkle ? 'text-green-400 hover:bg-green-400/10' : 'text-cyan-400 hover:bg-cyan-400/10'}`}>
+                <Save className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-base md:text-lg font-bold text-gray-100 leading-snug font-sans tracking-wide">
+            "{roast.content}"
+          </p>
+        )}
       </div>
-
-      {/* Explanation */}
-      {roast.explanation && (
-        <div className={`mb-3 text-xs italic border-l-2 pl-3 py-1 ${isSparkle ? 'text-gray-500 border-sparkle-muted/30' : 'text-slate-400 border-mystic-muted/30'}`}>
-          <span className="flex items-center gap-1 font-bold mb-0.5 opacity-80">
-            <Zap className="w-3 h-3" /> 暴论解析:
-          </span>
-          {roast.explanation}
-        </div>
-      )}
-
-      {/* Sources (if any) */}
-      {roast.sources && roast.sources.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2 relative z-10">
-          {roast.sources.map((source, i) => (
-             <a 
-               key={i} 
-               href={source.uri} 
-               target="_blank" 
-               rel="noopener noreferrer"
-               className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${isSparkle ? 'bg-sparkle-bg/50 border-sparkle-muted text-sparkle-text hover:bg-sparkle-muted' : 'bg-mystic-bg/50 border-mystic-muted text-mystic-text hover:bg-mystic-muted'}`}
-             >
-               <Link2 className="w-3 h-3" />
-               <span className="truncate max-w-[150px]">{source.title}</span>
-             </a>
-          ))}
-        </div>
-      )}
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-2 mt-auto pt-3 border-t border-white/5 relative z-10">
-        <button
-          onClick={handleCopy}
-          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full hover:text-white transition-all text-sm font-bold border group-hover:border-opacity-100 ${buttonClass}`}
-        >
-          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-          {copied ? '已复制' : '复制内容'}
-        </button>
-      </div>
+      {!isEditing && (
+        <div className="flex items-center justify-between pt-2 border-t border-white/5 relative z-10 opacity-60 group-hover:opacity-100 transition-opacity">
+          
+          <div className="flex gap-1">
+             <button 
+                onClick={() => setIsEditing(true)} 
+                className={actionButtonClass}
+                title="编辑文案"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+             </button>
+             <button 
+                onClick={() => onRegenerate(roast.id)} 
+                className={actionButtonClass}
+                disabled={isRegenerating}
+                title="重新生成这一条"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin' : ''}`} />
+             </button>
+          </div>
+
+          <button
+            onClick={handleCopy}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full hover:text-white transition-all text-xs font-bold border group-hover:border-opacity-100 ${copyButtonClass}`}
+          >
+            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copied ? '已复制' : '复制'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

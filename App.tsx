@@ -1,24 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { generateRoasts } from './services/geminiService';
+import { generateRoasts, regenerateSingleRoast } from './services/geminiService';
 import { RoastResponse, RoastStyle } from './types';
 import { StyleSelector } from './components/StyleSelector';
 import { RoastCard } from './components/RoastCard';
-import { Drama, AlertTriangle, Loader2, PartyPopper, Trash2, Globe, MessageCircleHeart } from 'lucide-react';
+import { Drama, AlertTriangle, Loader2, PartyPopper, Trash2, MessageCircleHeart } from 'lucide-react';
 
 const SUGGESTIONS = [
-  "你这么普通，为什么这么自信？",
-  "玩游戏这么菜，回家养猪去吧。",
-  "急了急了，他急了。",
-  "这就是你的观点？跟没说一样。"
+  "我是XX粉丝，我觉得这个作品神作！(串子)",
+  "我不喜欢你，所以你是错的 (逻辑漏洞)",
+  "虽然我没玩过，但我觉得这游戏垃圾 (云玩家)",
+  "评价一下我这波操作 (求夸)",
+  "就这？(极简嘲讽)"
 ];
 
 export default function App() {
   const [input, setInput] = useState('');
-  const [platform, setPlatform] = useState('');
   const [backgroundInfo, setBackgroundInfo] = useState('');
   const [style, setStyle] = useState<RoastStyle | 'ALL'>(RoastStyle.SHORT_PUNCHY);
   const [results, setResults] = useState<RoastResponse[]>([]);
   const [loading, setLoading] = useState(false);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -46,12 +47,34 @@ export default function App() {
     setResults([]);
     
     try {
-      const data = await generateRoasts(input, style, platform, backgroundInfo);
+      const data = await generateRoasts(input, style, backgroundInfo);
       setResults(data);
     } catch (err: any) {
       setError(err.message || "啧，网络好像坏掉了呢~");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateRoast = (id: string, newContent: string) => {
+    setResults(prev => prev.map(r => r.id === id ? { ...r, content: newContent } : r));
+  };
+
+  const handleRegenerateRoast = async (id: string) => {
+    const roastToRegenerate = results.find(r => r.id === id);
+    if (!roastToRegenerate || !input.trim()) return;
+
+    setRegeneratingId(id);
+    try {
+      // Pass the current style label (Chinese) and original content to the service
+      const newRoast = await regenerateSingleRoast(input, roastToRegenerate.style, roastToRegenerate.content, backgroundInfo);
+      
+      // Replace the old roast with the new one
+      setResults(prev => prev.map(r => r.id === id ? newRoast : r));
+    } catch (err: any) {
+      setError(err.message || "刷新失败，请稍后再试");
+    } finally {
+      setRegeneratingId(null);
     }
   };
 
@@ -115,30 +138,6 @@ export default function App() {
               
               {/* Context Inputs */}
               <div className="bg-black/20 border-b border-white/5">
-                {/* Platform Input (Emphasized) */}
-                <div className="flex flex-col md:flex-row md:items-center px-4 py-3 border-b border-white/5 transition-colors relative overflow-hidden">
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${theme === 'sparkle' ? 'bg-sparkle-secondary' : 'bg-mystic-secondary'}`}></div>
-                  
-                  <div className="flex items-center mb-2 md:mb-0 w-full">
-                    <div className={`p-1.5 rounded mr-3 ${theme === 'sparkle' ? 'bg-sparkle-secondary/10' : 'bg-mystic-secondary/10'}`}>
-                      <Globe className={`w-4 h-4 ${secondaryColor}`} />
-                    </div>
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        value={platform}
-                        onChange={(e) => setPlatform(e.target.value)}
-                        placeholder="在此输入URL 或 平台名称 (AI会自动读取内容/分析社区氛围)..."
-                        disabled={loading}
-                        className="w-full bg-transparent text-sm md:text-base text-white placeholder:text-gray-500 focus:outline-none font-bold tracking-wide"
-                      />
-                    </div>
-                  </div>
-                  <span className={`hidden md:inline-block text-[10px] font-bold px-2 py-0.5 border rounded uppercase tracking-wider whitespace-nowrap ${theme === 'sparkle' ? 'text-sparkle-secondary border-sparkle-secondary/30 bg-sparkle-secondary/10' : 'text-mystic-secondary border-mystic-secondary/30 bg-mystic-secondary/10'}`}>
-                    TARGET URL / SITE
-                  </span>
-                </div>
-
                 {/* Background Input */}
                 <div className="flex items-center px-4 py-2">
                   <div className="p-1.5 rounded mr-3 opacity-70">
@@ -150,7 +149,7 @@ export default function App() {
                     onChange={(e) => setBackgroundInfo(e.target.value)}
                     placeholder="添加事件背景 (比如: 对方急了, 或者是xx卫兵)..."
                     disabled={loading}
-                    className="w-full bg-transparent text-sm text-white/80 placeholder:text-gray-600 focus:outline-none py-1"
+                    className="w-full bg-transparent text-sm md:text-base text-white/80 placeholder:text-gray-600 focus:outline-none py-2 font-bold"
                   />
                 </div>
               </div>
@@ -238,7 +237,15 @@ export default function App() {
 
            <div className="grid grid-cols-1 gap-6">
             {results.map((roast, index) => (
-              <RoastCard key={index} roast={roast} index={index} theme={theme} />
+              <RoastCard 
+                key={roast.id} 
+                roast={roast} 
+                index={index} 
+                theme={theme} 
+                onUpdate={handleUpdateRoast}
+                onRegenerate={handleRegenerateRoast}
+                isRegenerating={regeneratingId === roast.id}
+              />
             ))}
           </div>
 

@@ -9,146 +9,229 @@ const responseSchemaObj = {
   items: {
     type: Type.OBJECT,
     properties: {
-      style: { type: Type.STRING, description: "The style of the roast (e.g., 阴阳怪气, 逻辑暴击)" },
+      style: { type: Type.STRING, description: "The style of the roast (IN CHINESE)" },
       content: { type: Type.STRING, description: "The actual text of the comeback/roast" },
-      attackPower: { type: Type.NUMBER, description: "A score from 1 to 100 indicating how harsh the roast is" },
-      explanation: { type: Type.STRING, description: "Brief explanation of why this comeback is effective" },
+      attackPower: { type: Type.NUMBER, description: "A score from 1 to 100" },
     },
     required: ["style", "content", "attackPower"],
   },
 };
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// List of models to try in order. If one hits a rate limit, we switch to the next.
+const MODEL_FALLBACK_LIST = [
+  "gemini-2.5-flash", 
+  "gemini-flash-lite-latest"
+];
+
+// --- PERSONA DEFINITIONS ---
+
+const TIEBA_PERSONA = `
+  Role: "Tieba/Zuan Veteran" (贴吧/祖安老哥).
+  Goal: Humiliate and emotionally damage (破防) the opponent.
+  
+  RULES:
+  1. MAX AGGRESSION. No politeness. No logic.
+  2. USE SLANG NATURALLY (NO QUOTES). e.g. 急了, 典, 孝子, 润, 赢, 乐, 蚌埠住了.
+  3. MANDATORY ABSTRACT EMOJIS: 😅, 🤡, 🐢, 🍺, 👴, 👊, 🥵.
+  4. DIRECT ATTACK. Be rude, loud, chaotic.
+  5. LENGTH CONSTRAINT: Concise. Max 2-3 short sentences. Don't write a novel.
+`;
+
+const LOGIC_PERSONA = `
+  Role: "Logical Yin Yang Master" (逻辑阴阳师).
+  Goal: Expose stupidity through their own logic using sarcasm.
+  
+  RULES:
+  1. FIND THE LOGIC BUG/LOOPHOLE.
+  2. ATTACK STRATEGY: Point out flaw -> Mock with sarcasm -> Rhetorical question.
+  3. VOCAB: 逻辑闭环, 双标, 不攻自破, 大脑皮层, 重新定义, 幽默, 闹麻了, 天才.
+  4. PATTERNS: "按照你的逻辑...", "有没有一种可能...", "建议...".
+  5. NO QUOTES around slang.
+  6. LENGTH CONSTRAINT: Concise. Max 2 sentences. Punchy sarcasm.
+`;
+
+// Helper to generate IDs
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
 export const generateRoasts = async (
   input: string, 
   selectedStyle: RoastStyle | 'ALL', 
-  platform: string = '', 
   backgroundInfo: string = ''
 ): Promise<RoastResponse[]> => {
   if (!apiKey) {
     throw new Error("API Key is missing");
   }
 
-  const model = "gemini-2.5-flash";
-  
-  const stylePrompt = selectedStyle === 'ALL' 
-    ? "Generate 3 distinct responses using different approaches (Logic, Meme, Aggressive), but all must be high-quality internet roasts." 
-    : `Generate 3 variations focusing strictly on the '${selectedStyle}' style.`;
+  // Define specific personas based on style
+  let personaInstructions = "";
+  let styleInstruction = "";
+
+  if (selectedStyle === RoastStyle.SHORT_PUNCHY) {
+    personaInstructions = TIEBA_PERSONA;
+    styleInstruction = "Generate 5 responses. Style label MUST be '暴躁老哥' or '一针见血'. Aggressive, Tieba slang/emojis. Immediate 'Emotional Damage'. NO QUOTATION MARKS around slang. KEEP IT SHORT.";
+  } else {
+    personaInstructions = LOGIC_PERSONA;
+    styleInstruction = "Generate 5 responses. Style label MUST be '逻辑鬼才' or '阴阳怪气'. Focus on LOGICAL FLAWS + SARCASM. Sharp, intelligent, minimalist. NO QUOTATION MARKS around slang. KEEP IT SHORT.";
+  }
 
   const contextParts = [];
-  
-  // Determine if we need to use search tools
-  const useSearch = !!(platform && (platform.includes('http') || platform.includes('www') || platform.includes('.com') || platform.includes('.cn')));
-  
-  let toolConfig: any = {};
-  
-  if (platform) {
-    contextParts.push(`Target URL / Platform: "${platform}". IMPORTANT: If this is a URL, assume the content matches the user's input. Analyze the culture of this website/platform (e.g., Bilibili users vs Tieba users vs Zhihu users vs Weibo users) and use specific slang or insults relevant to that community.`);
-    
-    if (useSearch) {
-       toolConfig = { tools: [{ googleSearch: {} }] };
-    }
-  }
-  
   if (backgroundInfo) {
-    contextParts.push(`Specific Background Situation: "${backgroundInfo}". Use these specific details to make the comeback personal and devastating.`);
+    contextParts.push(`Background Context: "${backgroundInfo}". You MUST incorporate this context into the roast.`);
   }
-
-  const contextPrompt = contextParts.length > 0
-    ? contextParts.join('\n')
-    : `Context: General internet argument.`;
 
   const prompt = `
-    You are a legendary "Internet Roast Master" (网络对线之神) in the Chinese internet community (Zuan/Tieba/Weibo veteran).
+    ${personaInstructions}
+    ${contextParts.join('\n')}
     
-    Your Persona:
-    1.  **Aggressive & Sharp**: You don't hold back. You go straight for the jugular with maximum emotional damage.
-    2.  **Master of Slang**: You are fluent in abstract emoji usage (😅, 🤡, 🥵), Tieba/Zhihu culture, and current memes.
-    3.  **Logical & Sarcastic**: You dismantle arguments with brutal logic wrapped in thick layers of sarcasm (Yin-Yang Qi).
-    4.  **Style**: You are NOT a cute anime girl. You are a battle-hardened keyboard warrior. You are cool, cynical, and ruthless.
+    User Input: "${input}"
     
-    Your task is to generate high-quality, humorous, and sharp responses to the following user input.
-    
-    ${contextPrompt}
-    
-    User Input (Opponent): "${input}"
-    
-    Task Requirements:
-    1. ${stylePrompt}
-    2. The language MUST be Chinese (Simplified).
-    3. Use Chinese internet slang appropriately (e.g., 急了, 典, 这就破防了?, 宁就是..., 😅, 也就这种程度).
-    4. Do NOT generate hate speech or illegal content. Keep it "Internet Roast" style (playful but sharp).
-    5. Return the response as a JSON array matching the following structure:
-       [
-         {
-           "style": "string",
-           "content": "string",
-           "attackPower": number (1-100),
-           "explanation": "string"
-         }
-       ]
-    6. IMPORTANT: Return ONLY the JSON. Do not wrap in markdown code blocks if possible, but if you do, I will parse it.
+    Task:
+    1. ${styleInstruction}
+    2. Language: Chinese (Simplified).
+    3. DETECT BAIT (钓鱼/反串): If bait, mock their acting skills (演技) using terms like "串子", "反串", "整活". DO NOT use "钩子/鱼钩".
+    4. FORMAT: JSON Array. No markdown formatting inside JSON strings.
+    5. Output structure: [{ "style": string (CHINESE), "content": string, "attackPower": number }]
   `;
 
-  try {
-    // Config logic: If tools are used, we CANNOT set responseMimeType or responseSchema.
-    const generationConfig: any = {
-      temperature: 1.1,
-      ...toolConfig
-    };
-
-    if (!useSearch) {
-      generationConfig.responseMimeType = "application/json";
-      generationConfig.responseSchema = responseSchemaObj;
-    }
-
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: generationConfig,
-    });
-
-    let text = response.text || "[]";
-    
-    // Cleanup markdown if present (likely happens when tools are used)
-    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    let parsedRoasts: RoastResponse[] = [];
-    try {
-      parsedRoasts = JSON.parse(text);
-    } catch (e) {
-      // Fallback: try to find array in text
-      const match = text.match(/\[.*\]/s);
-      if (match) {
-        parsedRoasts = JSON.parse(match[0]);
-      } else {
-        console.error("Failed to parse JSON:", text);
-        // Fallback response so app doesn't crash
-        parsedRoasts = [{
-          style: "System",
-          content: "对方的逻辑过于混乱，系统解析失败... (Parsing Error)",
-          attackPower: 0,
-          explanation: "Try again."
-        }];
-      }
-    }
-
-    // Extract sources if available
-    let sources: { title: string; uri: string }[] = [];
-    if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-       sources = response.candidates[0].groundingMetadata.groundingChunks
-        .map((chunk: any) => chunk.web)
-        .filter((web: any) => web)
-        .map((web: any) => ({ title: web.title, uri: web.uri }));
-    }
-
-    // Attach sources to responses (so the UI can show them on any card)
-    if (sources.length > 0) {
-      parsedRoasts = parsedRoasts.map(r => ({ ...r, sources }));
-    }
-    
-    return parsedRoasts;
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw new Error("Failed to generate roasts. Please try again.");
-  }
+  const results = await callGeminiWithRetry(prompt, responseSchemaObj);
+  
+  // Add IDs to results
+  return results.map((r: any) => ({ ...r, id: generateId() }));
 };
+
+export const regenerateSingleRoast = async (
+  input: string,
+  currentStyleLabel: string, // The Chinese label from the previous response
+  originalContent: string,
+  backgroundInfo: string = ''
+): Promise<RoastResponse> => {
+  
+  // Determine which persona to use based on the existing label
+  let personaInstructions = LOGIC_PERSONA; // Default fallback
+  let specificStyleInstruction = "";
+
+  const isTieba = ['暴躁老哥', '一针见血', '言简意赅', 'Tieba'].some(k => currentStyleLabel.includes(k));
+
+  if (isTieba) {
+    personaInstructions = TIEBA_PERSONA;
+    specificStyleInstruction = "Style: Aggressive Tieba/Zuan. Focus on better metaphors or stronger emotional damage.";
+  } else {
+    personaInstructions = LOGIC_PERSONA;
+    // Explicitly relax patterns to avoid repetition
+    specificStyleInstruction = "Style: Logical Sarcasm (Yin Yang). Focus on sharper irony. IMPORTANT: Do NOT repetitively start with 'According to your logic' (按照你的逻辑). Use varied sentence structures.";
+  }
+
+  const contextParts = [];
+  if (backgroundInfo) {
+    contextParts.push(`Background Context: "${backgroundInfo}". IMPORTANT: Integrate this context.`);
+  }
+
+  const prompt = `
+    ${personaInstructions}
+    ${contextParts.join('\n')}
+    
+    Target Style Label: "${currentStyleLabel}"
+    Original Roast Content: "${originalContent}"
+    User Input: "${input}"
+    
+    Task: REWRITE and OPTIMIZE the "Original Roast Content".
+    Requirements:
+    1. ${specificStyleInstruction}
+    2. Maintain roughly the SAME MEANING as the original roast, but phrase it differently/better. 
+    3. Language: Chinese (Simplified).
+    4. NO QUOTATION MARKS around slang.
+    5. STRICT LENGTH CONTROL: Keep it CONCISE. Similar length to the original (Max 2 sentences). DO NOT expand into paragraphs.
+    
+    Output Format: JSON Object (NOT Array)
+    { "style": "${currentStyleLabel}", "content": "Rewritten/Polished Text", "attackPower": 88 }
+  `;
+  
+  const singleItemSchema = {
+    type: Type.OBJECT,
+    properties: {
+      style: { type: Type.STRING },
+      content: { type: Type.STRING },
+      attackPower: { type: Type.NUMBER },
+    },
+    required: ["style", "content", "attackPower"],
+  };
+
+  const result = await callGeminiWithRetry(prompt, singleItemSchema);
+  return { ...result, id: generateId() };
+}
+
+// Shared retry logic
+async function callGeminiWithRetry(prompt: string, schema: any) {
+  let modelIndex = 0;
+  let attempt = 0;
+  const maxTotalAttempts = 5;
+
+  while (attempt < maxTotalAttempts) {
+    const currentModel = MODEL_FALLBACK_LIST[modelIndex];
+    
+    try {
+      const generationConfig: any = {
+        temperature: 1.3,
+        responseMimeType: "application/json",
+        responseSchema: schema,
+      };
+
+      const response = await ai.models.generateContent({
+        model: currentModel,
+        contents: prompt,
+        config: generationConfig,
+      });
+
+      let text = response.text || (schema.type === Type.ARRAY ? "[]" : "{}");
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      let parsedData;
+      try {
+        parsedData = JSON.parse(text);
+      } catch (e) {
+        // Simple fallback parsing for common JSON errors in LLM output
+        const match = schema.type === Type.ARRAY ? text.match(/\[.*\]/s) : text.match(/\{.*\}/s);
+        if (match) parsedData = JSON.parse(match[0]);
+        else throw new Error("JSON Parse failed");
+      }
+
+      return parsedData;
+
+    } catch (error: any) {
+      const isRateLimit = 
+        error.status === 429 || 
+        error.code === 429 ||
+        error.response?.status === 429 ||
+        error.message?.includes('429') || 
+        error.message?.includes('quota') || 
+        error.message?.includes('RESOURCE_EXHAUSTED');
+
+      if (isRateLimit) {
+        attempt++;
+        console.warn(`Rate limit hit on ${currentModel}.`);
+
+        if (modelIndex < MODEL_FALLBACK_LIST.length - 1) {
+          modelIndex++;
+          console.log(`Switching to backup model: ${MODEL_FALLBACK_LIST[modelIndex]}`);
+          await delay(500); 
+          continue;
+        } else {
+          if (attempt < maxTotalAttempts) {
+            const waitTime = 2000 * Math.pow(2, attempt - 1);
+            console.warn(`All models busy. Retrying primary model in ${waitTime}ms...`);
+            modelIndex = 0;
+            await delay(waitTime);
+            continue;
+          } else {
+             throw new Error("⚠️ 系统过载 (429): 服务器都在冒烟了，请稍后再试。");
+          }
+        }
+      }
+      
+      console.error("Gemini API Error:", error);
+      throw new Error("生成失败，请检查网络或稍后再试。");
+    }
+  }
+}
