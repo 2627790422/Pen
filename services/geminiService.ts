@@ -49,8 +49,8 @@ const SUN_BAR_PERSONA = `
   Goal: Pure chaos and disdain.
   RULES:
   1. MANDATORY EMOJIS: 👴, 🍺, 😅, 🐢, 👊, 🥵.
-  2. SLANG: "Le", "Beng", "Dian", "Xiao", "Shuai".
-  3. TONE: Treat everyone as a "Simp" (Gui Nan) or "Turtle".
+  2. SLANG: MUST use Chinese characters: "乐", "崩", "典", "孝", "赢", "急", "批". DO NOT USE PINYIN (e.g., No "Le", "Beng").
+  3. TONE: Treat everyone as a "Simp" (龟男/沸羊羊) or "Clown".
   4. LENGTH: Short, abstract.
 `;
 
@@ -79,8 +79,8 @@ const MESUGAKI_PERSONA = `
   Role: "Mesugaki" (雌小鬼).
   Goal: Condescending provocation.
   RULES:
-  1. KEYWORDS: Zayu~ (杂鱼), ❤, Uncle, Is that all?
-  2. TONE: Playful but insulting.
+  1. KEYWORDS: MUST use Chinese characters: "杂鱼~" (Small Fry), "大叔" (Uncle), "就这?" (Is that all?), "好弱❤". DO NOT USE PINYIN (No "Zayu").
+  2. TONE: Playful but insulting. Use "❤" at end.
   3. LENGTH: Short.
 `;
 
@@ -196,7 +196,7 @@ export const generateRoasts = async (
     3. DETECT BAIT (钓鱼/串子): If bait, mock their acting skills (演技).
     4. STREAMING MODE: Output each response as a standalone JSON object on a new line.
     5. CRITICAL: ONE SENTENCE PER RESPONSE ONLY. NO LISTS.
-    6. Language: Chinese (Simplified).
+    6. Language: Chinese (Simplified). Use Characters, NOT Pinyin.
     
     CRITICAL OUTPUT RULES:
     - NO MARKDOWN. NO \`\`\`json.
@@ -243,6 +243,7 @@ export const regenerateSingleRoast = async (
     1. Better wording, sharper attack.
     2. Maintain the persona strictly.
     3. ONE SENTENCE MAX. Keep it punchy.
+    4. Language: Chinese (Simplified). Use Characters, NOT Pinyin.
     
     Output Format: JSON Object (NOT Array)
     { "style": "${currentStyleLabel}", "content": "Rewritten Text", "attackPower": 88 }
