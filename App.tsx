@@ -1,27 +1,33 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { generateRoasts, regenerateSingleRoast } from './services/geminiService';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { generateRoasts, regenerateSingleRoast, analyzeContextWithAI } from './services/geminiService';
 import { RoastResponse, RoastStyle } from './types';
 import { StyleSelector } from './components/StyleSelector';
 import { RoastCard } from './components/RoastCard';
-import { Drama, AlertTriangle, Loader2, PartyPopper, Trash2, MessageCircleHeart } from 'lucide-react';
+import { Drama, AlertTriangle, Loader2, PartyPopper, Trash2, MessageCircleHeart, Sparkles } from 'lucide-react';
 
 const SUGGESTIONS = [
-  "我是XX粉丝，我觉得这个作品神作！(串子)",
-  "我不喜欢你，所以你是错的 (逻辑漏洞)",
-  "虽然我没玩过，但我觉得这游戏垃圾 (云玩家)",
-  "评价一下我这波操作 (求夸)",
-  "就这？(极简嘲讽)"
+  "抛开事实不谈，难道你就没有错吗",
+  "别问我为什么，懂得都懂",
+  "我不喜欢这个，所以这个是垃圾",
+  "我是路人，有一说一，我觉得",
+  "你行你上啊",
+  "他虽然出轨了，但他还是个好男孩"
 ];
 
 export default function App() {
   const [input, setInput] = useState('');
   const [backgroundInfo, setBackgroundInfo] = useState('');
+  const [suggestedContext, setSuggestedContext] = useState('');
+  const [isAnalyzingContext, setIsAnalyzingContext] = useState(false); // State for AI context analysis
   const [style, setStyle] = useState<RoastStyle | 'ALL'>(RoastStyle.SHORT_PUNCHY);
   const [results, setResults] = useState<RoastResponse[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visualProgress, setVisualProgress] = useState(0);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
 
   // Theme Logic
   const theme = style === RoastStyle.SHORT_PUNCHY ? 'sparkle' : 'mystic';
@@ -39,16 +45,99 @@ export default function App() {
     ? 'from-sparkle-primary to-sparkle-secondary shadow-[0_0_20px_rgba(244,63,94,0.5)]' 
     : 'from-mystic-primary to-mystic-secondary shadow-[0_0_20px_rgba(139,92,246,0.5)]';
 
+  // --- PROGRESS BAR LOGIC ---
+  useEffect(() => {
+    let interval: any;
+    
+    if (loading) {
+      if (results.length === 0) {
+        // Phase 1: 0 -> 80% (Thinking phase)
+        // Gradually move to 80% while waiting for the first token
+        setVisualProgress(0);
+        interval = setInterval(() => {
+          setVisualProgress(prev => {
+            if (prev >= 80) {
+              clearInterval(interval);
+              return 80;
+            }
+            // Decelerating curve
+            return prev + (80 - prev) * 0.05; 
+          });
+        }, 100);
+      } else {
+        // Phase 2: 80% -> 100% (Generation phase)
+        // 5 items expected. Each item adds 4% to the base 80%.
+        const realProgress = 80 + (results.length * 4);
+        setVisualProgress(Math.min(realProgress, 100));
+      }
+    } else {
+      if (results.length > 0) {
+        setVisualProgress(100);
+      } else {
+        setVisualProgress(0);
+      }
+    }
+
+    return () => clearInterval(interval);
+  }, [loading, results.length]);
+
+  // --- AI CONTEXT GUESSING WITH DEBOUNCE ---
+  useEffect(() => {
+    // If user has manually typed background info, do nothing
+    if (backgroundInfo) {
+      setSuggestedContext('');
+      setIsAnalyzingContext(false);
+      return;
+    }
+
+    if (!input || input.length < 5) {
+      setSuggestedContext('');
+      setIsAnalyzingContext(false);
+      return;
+    }
+
+    setIsAnalyzingContext(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const guess = await analyzeContextWithAI(input);
+        setSuggestedContext(guess);
+      } catch (e) {
+        console.error("Context analysis error", e);
+      } finally {
+        setIsAnalyzingContext(false);
+      }
+    }, 1200); // 1.2s Debounce to prevent rate limits
+
+    return () => clearTimeout(timer);
+  }, [input, backgroundInfo]);
+
+
+  const handleApplySuggestion = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent focusing input unnecessarily if bubbling
+    if (suggestedContext) {
+      setBackgroundInfo(suggestedContext);
+      setSuggestedContext('');
+      // Focus input after a brief delay to allow state update
+      setTimeout(() => {
+        backgroundInputRef.current?.focus();
+      }, 0);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!input.trim()) return;
     
     setLoading(true);
     setError(null);
-    setResults([]);
+    setResults([]); // Clear previous results immediately
+    setVisualProgress(0);
     
     try {
-      const data = await generateRoasts(input, style, backgroundInfo);
-      setResults(data);
+      // Use streaming callback to update results as they come in
+      await generateRoasts(input, style, backgroundInfo, (newRoast) => {
+        setResults(prev => [...prev, newRoast]);
+      });
     } catch (err: any) {
       setError(err.message || "啧，网络好像坏掉了呢~");
     } finally {
@@ -81,6 +170,9 @@ export default function App() {
   const handleClear = () => {
     setInput('');
     setResults([]);
+    setBackgroundInfo('');
+    setSuggestedContext('');
+    setIsAnalyzingContext(false);
     setError(null);
     if (textareaRef.current) textareaRef.current.focus();
   };
@@ -109,6 +201,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* Main Container */}
       <div className="relative z-10 max-w-4xl mx-auto px-4 pt-8 md:pt-16">
         {/* Header */}
         <header className="text-center mb-10 relative">
@@ -136,32 +229,61 @@ export default function App() {
           <div className="relative">
             <div className={`relative bg-black/20 rounded-2xl overflow-hidden flex flex-col border transition-all duration-300 focus-within:shadow-lg ${theme === 'sparkle' ? 'border-sparkle-muted/30 focus-within:border-sparkle-primary' : 'border-mystic-muted/30 focus-within:border-mystic-primary'}`}>
               
-              {/* Context Inputs */}
-              <div className="bg-black/20 border-b border-white/5">
-                {/* Background Input */}
+              {/* Context Inputs - UPDATED WITH AI GUESS */}
+              <div className="bg-black/20 border-b border-white/5 relative group/ctx">
                 <div className="flex items-center px-4 py-2">
                   <div className="p-1.5 rounded mr-3 opacity-70">
                     <MessageCircleHeart className={`w-4 h-4 ${theme === 'sparkle' ? 'text-pink-400' : 'text-purple-400'}`} />
                   </div>
-                  <input
-                    type="text"
-                    value={backgroundInfo}
-                    onChange={(e) => setBackgroundInfo(e.target.value)}
-                    placeholder="添加事件背景 (比如: 对方急了, 或者是xx卫兵)..."
-                    disabled={loading}
-                    className="w-full bg-transparent text-sm md:text-base text-white/80 placeholder:text-gray-600 focus:outline-none py-2 font-bold"
-                  />
+                  
+                  <div className="relative w-full h-10 flex items-center">
+                     <input
+                      ref={backgroundInputRef}
+                      type="text"
+                      value={backgroundInfo}
+                      onChange={(e) => setBackgroundInfo(e.target.value)}
+                      placeholder={
+                        isAnalyzingContext 
+                        ? "AI 正在分析成分..." 
+                        : (suggestedContext ? "" : "添加事件背景 (比如: 对方急了, 或者是xx卫兵)...")
+                      }
+                      disabled={loading}
+                      className="w-full h-full bg-transparent text-sm md:text-base text-white/80 placeholder:text-gray-600 focus:outline-none font-bold relative z-10"
+                    />
+                    
+                    {/* Analyzing Loader Overlay */}
+                    {isAnalyzingContext && !backgroundInfo && (
+                        <div className="absolute top-0 left-0 h-full w-full flex items-center pointer-events-none z-20 pl-1">
+                          <Loader2 className={`w-3 h-3 mr-2 animate-spin ${theme === 'sparkle' ? 'text-sparkle-primary' : 'text-mystic-primary'}`} />
+                        </div>
+                    )}
+                    
+                    {/* Suggested Context Overlay (Clickable Text, Transparent Container) */}
+                    {!backgroundInfo && !isAnalyzingContext && suggestedContext && (
+                      <div className="absolute top-0 left-0 h-full w-full flex items-center pointer-events-none z-20">
+                        <span 
+                          onClick={handleApplySuggestion}
+                          className={`cursor-pointer pointer-events-auto flex items-center transition-all duration-300 group/hint ${theme === 'sparkle' ? 'text-sparkle-primary/40 hover:text-sparkle-primary' : 'text-mystic-primary/40 hover:text-mystic-primary'}`}
+                        >
+                          <Sparkles className="w-3 h-3 mr-1.5 animate-pulse" />
+                          <span className="italic font-bold tracking-wide group-hover/hint:underline decoration-dashed underline-offset-4">
+                            猜测背景: {suggestedContext}?
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Main Text Area */}
+              {/* Main Text Area - Reduced Height */}
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="在此粘贴对方的暴论 (Ctrl+Enter 开怼)..."
-                className="w-full h-32 md:h-44 bg-transparent text-white p-5 resize-none focus:outline-none placeholder:text-gray-600 font-sans text-lg leading-relaxed"
+                className="w-full h-16 md:h-24 bg-transparent text-white p-5 resize-none focus:outline-none placeholder:text-gray-600 font-sans text-lg leading-relaxed"
                 disabled={loading}
               />
               
@@ -203,7 +325,7 @@ export default function App() {
                   {loading ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>正在对线...</span>
+                      <span>正在输出...</span>
                     </>
                   ) : (
                     <>
@@ -215,6 +337,27 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          {/* Progress Bar (Visible during loading) - 80/20 LOGIC */}
+          {loading && (
+             <div className="mt-4 px-2 animate-in fade-in duration-300">
+                <div className="flex justify-between items-center text-[10px] font-bold mb-1 opacity-70 tracking-widest uppercase">
+                   <span className={primaryColor}>
+                      {results.length === 0 ? "Analyzing weakness..." : "Generating Impacts..."}
+                   </span>
+                   <span className="text-white font-mono">{Math.round(visualProgress)}%</span>
+                </div>
+                <div className="relative h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
+                   <div 
+                      className={`absolute top-0 left-0 h-full transition-all duration-300 ease-out shadow-[0_0_10px_currentColor] ${theme === 'sparkle' ? 'bg-gradient-to-r from-sparkle-primary to-sparkle-secondary' : 'bg-gradient-to-r from-mystic-primary to-mystic-secondary'}`}
+                      style={{ width: `${visualProgress}%` }}
+                   >
+                     {/* Shimmer inside bar */}
+                     <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full animate-[shimmer_1s_infinite]"></div>
+                   </div>
+                </div>
+             </div>
+          )}
         </div>
 
         {/* Error Message */}
