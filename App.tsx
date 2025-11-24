@@ -18,7 +18,7 @@ export default function App() {
   const [input, setInput] = useState('');
   const [backgroundInfo, setBackgroundInfo] = useState('');
   const [suggestedContext, setSuggestedContext] = useState('');
-  const [isAnalyzingContext, setIsAnalyzingContext] = useState(false); // State for AI context analysis
+  const [isAnalyzingContext, setIsAnalyzingContext] = useState(false);
   const [style, setStyle] = useState<RoastStyle | 'ALL'>(RoastStyle.SHORT_PUNCHY);
   const [results, setResults] = useState<RoastResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -29,16 +29,14 @@ export default function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
 
-  // Theme Logic
+  // Theme Logic: SHORT_PUNCHY is Sparkle (Red), others are Mystic (Blue/Purple)
   const theme = style === RoastStyle.SHORT_PUNCHY ? 'sparkle' : 'mystic';
   
-  // Dynamic Background Classes
   const bgClass = theme === 'sparkle' ? 'bg-sparkle-bg text-sparkle-text' : 'bg-mystic-bg text-mystic-text';
   const selectionClass = theme === 'sparkle' ? 'selection:bg-sparkle-primary' : 'selection:bg-mystic-primary';
   const primaryColor = theme === 'sparkle' ? 'text-sparkle-primary' : 'text-mystic-primary';
   const secondaryColor = theme === 'sparkle' ? 'text-sparkle-secondary' : 'text-mystic-secondary';
   
-  // Animation/Orb Colors
   const orb1 = theme === 'sparkle' ? 'bg-sparkle-primary/20' : 'bg-mystic-primary/20';
   const orb2 = theme === 'sparkle' ? 'bg-sparkle-secondary/20' : 'bg-mystic-secondary/20';
   const buttonGradient = theme === 'sparkle' 
@@ -48,48 +46,32 @@ export default function App() {
   // --- PROGRESS BAR LOGIC ---
   useEffect(() => {
     let interval: any;
-    
     if (loading) {
       if (results.length === 0) {
-        // Phase 1: 0 -> 80% (Thinking phase)
-        // Gradually move to 80% while waiting for the first token
         setVisualProgress(0);
         interval = setInterval(() => {
           setVisualProgress(prev => {
-            if (prev >= 80) {
-              clearInterval(interval);
-              return 80;
-            }
-            // Decelerating curve
+            if (prev >= 80) { clearInterval(interval); return 80; }
             return prev + (80 - prev) * 0.05; 
           });
         }, 100);
       } else {
-        // Phase 2: 80% -> 100% (Generation phase)
-        // 5 items expected. Each item adds 4% to the base 80%.
         const realProgress = 80 + (results.length * 4);
         setVisualProgress(Math.min(realProgress, 100));
       }
     } else {
-      if (results.length > 0) {
-        setVisualProgress(100);
-      } else {
-        setVisualProgress(0);
-      }
+      setVisualProgress(results.length > 0 ? 100 : 0);
     }
-
     return () => clearInterval(interval);
   }, [loading, results.length]);
 
-  // --- AI CONTEXT GUESSING WITH DEBOUNCE ---
+  // --- AI CONTEXT GUESSING ---
   useEffect(() => {
-    // If user has manually typed background info, do nothing
     if (backgroundInfo) {
       setSuggestedContext('');
       setIsAnalyzingContext(false);
       return;
     }
-
     if (!input || input.length < 5) {
       setSuggestedContext('');
       setIsAnalyzingContext(false);
@@ -97,44 +79,34 @@ export default function App() {
     }
 
     setIsAnalyzingContext(true);
-
     const timer = setTimeout(async () => {
       try {
         const guess = await analyzeContextWithAI(input);
         setSuggestedContext(guess);
-      } catch (e) {
-        console.error("Context analysis error", e);
-      } finally {
-        setIsAnalyzingContext(false);
-      }
-    }, 1200); // 1.2s Debounce to prevent rate limits
+      } catch (e) { console.error(e); } finally { setIsAnalyzingContext(false); }
+    }, 1200);
 
     return () => clearTimeout(timer);
   }, [input, backgroundInfo]);
 
 
   const handleApplySuggestion = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent focusing input unnecessarily if bubbling
+    e.stopPropagation(); 
     if (suggestedContext) {
       setBackgroundInfo(suggestedContext);
       setSuggestedContext('');
-      // Focus input after a brief delay to allow state update
-      setTimeout(() => {
-        backgroundInputRef.current?.focus();
-      }, 0);
+      setTimeout(() => { backgroundInputRef.current?.focus(); }, 0);
     }
   };
 
   const handleGenerate = async () => {
     if (!input.trim()) return;
-    
     setLoading(true);
     setError(null);
-    setResults([]); // Clear previous results immediately
+    setResults([]); 
     setVisualProgress(0);
     
     try {
-      // Use streaming callback to update results as they come in
       await generateRoasts(input, style, backgroundInfo, (newRoast) => {
         setResults(prev => [...prev, newRoast]);
       });
@@ -155,13 +127,10 @@ export default function App() {
 
     setRegeneratingId(id);
     try {
-      // Pass the current style label (Chinese) and original content to the service
       const newRoast = await regenerateSingleRoast(input, roastToRegenerate.style, roastToRegenerate.content, backgroundInfo);
-      
-      // Replace the old roast with the new one
       setResults(prev => prev.map(r => r.id === id ? newRoast : r));
     } catch (err: any) {
-      setError(err.message || "刷新失败，请稍后再试");
+      setError(err.message || "刷新失败");
     } finally {
       setRegeneratingId(null);
     }
@@ -185,25 +154,16 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${bgClass} ${selectionClass} font-sans pb-20 overflow-x-hidden relative transition-colors duration-700`}>
-      
       {/* Background Ambience */}
       <div className="fixed inset-0 bg-grid pointer-events-none z-0 opacity-20"></div>
       <div className="fixed top-0 left-0 w-full h-full z-0 overflow-hidden pointer-events-none">
         <div className={`absolute top-20 left-10 w-32 h-32 ${orb1} rounded-full blur-[80px] animate-float transition-colors duration-700`}></div>
         <div className={`absolute bottom-20 right-10 w-48 h-48 ${orb2} rounded-full blur-[100px] animate-float-delayed transition-colors duration-700`}></div>
-        
-        {/* Anime Decorative Text */}
-        <div className="absolute top-1/4 right-5 text-9xl font-black opacity-5 select-none writing-vertical-rl text-white">
-          ATTACK
-        </div>
-        <div className="absolute bottom-1/3 left-5 text-8xl font-black opacity-5 select-none text-white">
-          CRIT
-        </div>
+        <div className="absolute top-1/4 right-5 text-9xl font-black opacity-5 select-none writing-vertical-rl text-white">ATTACK</div>
+        <div className="absolute bottom-1/3 left-5 text-8xl font-black opacity-5 select-none text-white">CRIT</div>
       </div>
 
-      {/* Main Container */}
       <div className="relative z-10 max-w-4xl mx-auto px-4 pt-8 md:pt-16">
-        {/* Header */}
         <header className="text-center mb-10 relative">
           <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-20 blur-2xl -z-10 transition-colors duration-700 ${theme === 'sparkle' ? 'bg-sparkle-primary/30' : 'bg-mystic-primary/30'}`}></div>
           <div className={`inline-flex items-center justify-center p-4 mb-4 rounded-2xl bg-black/40 border backdrop-blur-sm animate-float transition-colors duration-700 ${theme === 'sparkle' ? 'border-sparkle-primary/50' : 'border-mystic-primary/50'}`}>
@@ -213,15 +173,11 @@ export default function App() {
             </h1>
           </div>
           <p className="text-white/70 max-w-lg mx-auto text-base font-medium flex items-center justify-center gap-2">
-            <span className={secondaryColor}>✨</span> 
-            专治各种不服 
-            <span className={secondaryColor}>✨</span>
+            <span className={secondaryColor}>✨</span> 专治各种不服 <span className={secondaryColor}>✨</span>
           </p>
         </header>
 
-        {/* Input Section */}
         <div className={`bg-black/40 backdrop-blur-md border rounded-3xl p-1 md:p-6 mb-8 shadow-2xl relative overflow-hidden group transition-all duration-700 ${theme === 'sparkle' ? 'border-sparkle-muted/40' : 'border-mystic-muted/40'}`}>
-          {/* Decorative Borders */}
           <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent to-transparent opacity-50 transition-colors duration-700 ${theme === 'sparkle' ? 'via-sparkle-primary' : 'via-mystic-primary'}`}></div>
           
           <StyleSelector selected={style} onChange={setStyle} disabled={loading} theme={theme} />
@@ -229,7 +185,7 @@ export default function App() {
           <div className="relative">
             <div className={`relative bg-black/20 rounded-2xl overflow-hidden flex flex-col border transition-all duration-300 focus-within:shadow-lg ${theme === 'sparkle' ? 'border-sparkle-muted/30 focus-within:border-sparkle-primary' : 'border-mystic-muted/30 focus-within:border-mystic-primary'}`}>
               
-              {/* Context Inputs - UPDATED WITH AI GUESS */}
+              {/* Context Inputs */}
               <div className="bg-black/20 border-b border-white/5 relative group/ctx">
                 <div className="flex items-center px-4 py-2">
                   <div className="p-1.5 rounded mr-3 opacity-70">
@@ -242,23 +198,17 @@ export default function App() {
                       type="text"
                       value={backgroundInfo}
                       onChange={(e) => setBackgroundInfo(e.target.value)}
-                      placeholder={
-                        isAnalyzingContext 
-                        ? "AI 正在分析成分..." 
-                        : (suggestedContext ? "" : "添加事件背景 (比如: 对方急了, 或者是xx卫兵)...")
-                      }
+                      placeholder={isAnalyzingContext ? "AI 正在分析成分..." : (suggestedContext ? "" : "添加事件背景 (比如: 对方急了, 或者是xx卫兵)...")}
                       disabled={loading}
                       className="w-full h-full bg-transparent text-sm md:text-base text-white/80 placeholder:text-gray-600 focus:outline-none font-bold relative z-10"
                     />
                     
-                    {/* Analyzing Loader Overlay */}
                     {isAnalyzingContext && !backgroundInfo && (
                         <div className="absolute top-0 left-0 h-full w-full flex items-center pointer-events-none z-20 pl-1">
                           <Loader2 className={`w-3 h-3 mr-2 animate-spin ${theme === 'sparkle' ? 'text-sparkle-primary' : 'text-mystic-primary'}`} />
                         </div>
                     )}
                     
-                    {/* Suggested Context Overlay (Clickable Text, Transparent Container) */}
                     {!backgroundInfo && !isAnalyzingContext && suggestedContext && (
                       <div className="absolute top-0 left-0 h-full w-full flex items-center pointer-events-none z-20">
                         <span 
@@ -267,7 +217,7 @@ export default function App() {
                         >
                           <Sparkles className="w-3 h-3 mr-1.5 animate-pulse" />
                           <span className="italic font-bold tracking-wide group-hover/hint:underline decoration-dashed underline-offset-4">
-                            猜测背景: {suggestedContext}?
+                            猜测背景: {suggestedContext}? <span className="text-[10px] opacity-60 ml-1 not-italic">(点击填入)</span>
                           </span>
                         </span>
                       </div>
@@ -276,7 +226,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Main Text Area - Reduced Height */}
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -287,7 +236,6 @@ export default function App() {
                 disabled={loading}
               />
               
-              {/* Toolbar */}
               <div className="flex items-center justify-between px-4 py-3 bg-black/30 border-t border-white/5">
                 <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar mask-gradient">
                   {!input && SUGGESTIONS.map((s, i) => (
@@ -314,37 +262,24 @@ export default function App() {
                   disabled={!input.trim() || loading}
                   className={`
                     flex items-center gap-2 px-6 md:px-8 py-2.5 rounded-xl font-black text-base transition-all transform active:scale-95 relative overflow-hidden group/btn whitespace-nowrap
-                    ${!input.trim() || loading 
-                      ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                      : `bg-gradient-to-r text-white ${buttonGradient}`}
+                    ${!input.trim() || loading ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : `bg-gradient-to-r text-white ${buttonGradient}`}
                   `}
                 >
-                  {/* Sheen Effect */}
                   <div className="absolute top-0 -left-full w-full h-full bg-white/20 skew-x-12 group-hover/btn:animate-[shimmer_1s_infinite]"></div>
-
                   {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>正在输出...</span>
-                    </>
+                    <> <Loader2 className="w-5 h-5 animate-spin" /> <span>正在输出...</span> </>
                   ) : (
-                    <>
-                      <span>火力全开</span>
-                      <PartyPopper className="w-4 h-4 group-hover/btn:rotate-12 transition-transform" />
-                    </>
+                    <> <span>火力全开</span> <PartyPopper className="w-4 h-4 group-hover/btn:rotate-12 transition-transform" /> </>
                   )}
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Progress Bar (Visible during loading) - 80/20 LOGIC */}
           {loading && (
              <div className="mt-4 px-2 animate-in fade-in duration-300">
                 <div className="flex justify-between items-center text-[10px] font-bold mb-1 opacity-70 tracking-widest uppercase">
-                   <span className={primaryColor}>
-                      {results.length === 0 ? "Analyzing weakness..." : "Generating Impacts..."}
-                   </span>
+                   <span className={primaryColor}>{results.length === 0 ? "Analyzing weakness..." : "Generating Impacts..."}</span>
                    <span className="text-white font-mono">{Math.round(visualProgress)}%</span>
                 </div>
                 <div className="relative h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
@@ -352,7 +287,6 @@ export default function App() {
                       className={`absolute top-0 left-0 h-full transition-all duration-300 ease-out shadow-[0_0_10px_currentColor] ${theme === 'sparkle' ? 'bg-gradient-to-r from-sparkle-primary to-sparkle-secondary' : 'bg-gradient-to-r from-mystic-primary to-mystic-secondary'}`}
                       style={{ width: `${visualProgress}%` }}
                    >
-                     {/* Shimmer inside bar */}
                      <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full animate-[shimmer_1s_infinite]"></div>
                    </div>
                 </div>
@@ -360,7 +294,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="flex items-center gap-3 p-4 mb-8 bg-red-950/40 border border-red-500/50 rounded-xl text-red-200 animate-shake">
             <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
@@ -368,7 +301,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Results Area */}
         <div className="space-y-6">
            {results.length > 0 && (
              <div className={`flex items-center justify-center gap-4 text-sm font-black uppercase tracking-[0.2em] mb-8 ${secondaryColor}`}>
@@ -377,7 +309,6 @@ export default function App() {
                 <span className={`w-12 h-px bg-gradient-to-l from-transparent ${theme === 'sparkle' ? 'to-sparkle-secondary' : 'to-mystic-secondary'}`}></span>
              </div>
            )}
-
            <div className="grid grid-cols-1 gap-6">
             {results.map((roast, index) => (
               <RoastCard 
@@ -391,15 +322,6 @@ export default function App() {
               />
             ))}
           </div>
-
-          {!loading && results.length === 0 && !error && (
-            <div className="text-center py-20 opacity-40">
-              <div className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center border-2 border-dashed animate-float ${theme === 'sparkle' ? 'bg-sparkle-card border-sparkle-muted/50 text-sparkle-muted' : 'bg-mystic-card border-mystic-muted/50 text-mystic-muted'}`}>
-                <Drama className="w-10 h-10" />
-              </div>
-              <p className="text-white/60 font-bold">准备好开始对线了吗？</p>
-            </div>
-          )}
         </div>
       </div>
     </div>

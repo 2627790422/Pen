@@ -1,13 +1,13 @@
 export enum RoastStyle {
   // Main Modes
-  SHORT_PUNCHY = '一针见血', // Tieba/Aggressive
-  LOGIC_MASTER = '逻辑鬼才', // Logic/YinYang
+  SHORT_PUNCHY = '一针见血', // Main 1: Aggressive Tieba/Zuan
+  LOGIC_MASTER = '逻辑鬼才', // Main 2: Colloquial Logic/Metaphor
 
   // Sub Modes (Specialized)
-  SUN_BAR = '孙吧老哥',      // Abstract Emoji Aggression
-  ANTI_MI = '原神对线',      // Anti-Genshin/MiHoYo Fan
-  ANTI_FAIRY = '仙女克星',   // Anti-Radical Feminist/XXN
-  MESUGAKI = '雌小鬼',       // Mesugaki/Little Devil
+  SUN_BAR = '孙吧哥',      // Abstract Emoji/Malice
+  ANTI_MI = '米卫兵',      // Anti-Genshin/OP
+  ANTI_FAIRY = '小仙女',   // Anti-Fairy/Gender
+  MESUGAKI = '雌小鬼',     // Imp/Zayu
 }
 
 export interface RoastResponse {

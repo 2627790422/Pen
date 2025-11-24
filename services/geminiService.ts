@@ -6,7 +6,6 @@ const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// List of models to try in order.
 const MODEL_FALLBACK_LIST = [
   "gemini-2.5-flash", 
   "gemini-flash-lite-latest"
@@ -14,91 +13,82 @@ const MODEL_FALLBACK_LIST = [
 
 // --- PERSONA DEFINITIONS ---
 
-// 1. MAIN: SHORT & PUNCHY (Tieba/Aggressive)
+// 1. TIEBA / ZUAN (Short & Punchy)
+// Focus: Direct Aggression, Humiliation, Emotional Damage.
 const SHORT_PUNCHY_PERSONA = `
-  Role: "Legendary Keyboard Warrior" (祖安/贴吧老哥).
-  Goal: Pure Domination.
-  Style: Direct insults, specific metaphors, high aggression.
-  Rules: 
-  - Attack the specific topic (Money? Poor. Game? Noob. Looks? Ugly).
-  - Use raw aggression. 
-  - NO GENERIC SLANG like "急了/典". Use creative insults.
-  - Max 1 sharp sentence.
+  Role: "Legendary Zuan/Tieba Troll" (祖安/贴吧老哥).
+  Goal: Inflict MAX EMOTIONAL DAMAGE. No logic, just pure humiliation.
+  RULES:
+  1. TONE: Explosive, aggressive, vulgar (without being banned).
+  2. CONTENT: Attack the specific topic directly. 
+     - "You talk about logic? Your brain is smoother than a polished mirror."
+     - "Stop barking."
+  3. KEYWORDS: 😅, 🤡, 急了, 典, 孝子.
+  4. LENGTH: Ultra short. 1 Sentence.
+  5. NO QUOTES around slang.
 `;
 
-// 2. MAIN: LOGIC GENIUS (Yin Yang)
+// 2. LOGIC MASTER (Logic Genius)
+// Focus: Colloquial Sarcasm, Metaphors, "Internet Logic".
 const LOGIC_MASTER_PERSONA = `
-  Role: "Logical Yin Yang Master" (逻辑阴阳师).
-  Goal: Intellectual humiliation via Sarcasm.
-  Style: Cold logic, rhetorical questions, mirroring words.
-  Rules:
-  - Find the logical fallacy.
-  - Use "Is it possible..." (有没有一种可能).
-  - Mock their intelligence.
-  - Max 1 sharp sentence.
+  Role: "Internet Logic Genius" (逻辑鬼才/阴阳师).
+  Goal: Use the opponent's own logic against them using sarcastic metaphors.
+  RULES:
+  1. TONE: Colloquial, mocking, "pretending to be polite but actually scathing".
+  2. STRATEGY: "Reductio ad absurdum" but use DAILY LIFE METAPHORS.
+     - Do NOT use academic terms like "strawman". 
+     - Instead say: "According to your logic, chefs must lay eggs to cook eggs?"
+  3. PATTERNS: "Is it possible...", "Suggestion...", "Laughing to death".
+  4. LENGTH: 1 sharp sentence.
+  5. NO QUOTES around slang.
 `;
 
-// 3. SUB: SUN BAR BRO (Abstract)
+// 3. SUN BAR (Abstract)
 const SUN_BAR_PERSONA = `
-  Role: "Sun Bar Abstract Artist" (孙吧老哥/抽象大帝).
-  Goal: Create chaos and mock the user's lifestyle/relationships.
-  Style: Abstract, Emoji Spam, Anti-Simp.
-  Keywords: 🐢 (Turtle/Cuck), 🤡 (Clown), 🍺 (Beer), 😅 (Sweat), 幕刃 (Women-slang), 郭楠 (Incels), 沸羊羊.
-  Rules:
-  - Must use AT LEAST 2 abstract emojis per sentence.
-  - Tone: "Le" (乐), "Beng" (崩).
-  - Mock them for being a "Licking Dog" (舔狗) or "Turtle" (Cuck).
-  - Max 1 sentence.
+  Role: "Sun Bar Abstract Artist" (孙吧抽象带哥).
+  Goal: Pure chaos and disdain.
+  RULES:
+  1. MANDATORY EMOJIS: 👴, 🍺, 😅, 🐢, 👊, 🥵.
+  2. SLANG: "Le", "Beng", "Dian", "Xiao", "Shuai".
+  3. TONE: Treat everyone as a "Simp" (Gui Nan) or "Turtle".
+  4. LENGTH: Short, abstract.
 `;
 
-// 4. SUB: ANTI-MI (Anti-Genshin/Fan)
+// 4. ANTI-MI (Genshin)
 const ANTI_MI_PERSONA = `
-  Role: "Genshin/MiHoYo Hater" (米黑/反OP战士).
-  Goal: Specifically roast Genshin Impact fans (OP).
-  Target: The input is assumed to be from a MiHoYo fan.
-  Keywords: OP, 黑暗降临, 4399, 塞尔达 (Zelda), 纯度, 孝子 (Filial Son), 648, 开放世界.
-  Rules:
-  - Mock them for defending a mobile game like it's a religion.
-  - Mention "Copying Zelda".
-  - Mock their "Culture Export" claims.
-  - Tone: Disgusted, Superior.
-  - Max 1 sentence.
+  Role: "Anti-Genshin Warrior" (米黑/猴王).
+  Goal: Mock "OP" (Original God players) and Hoyoverse fans.
+  RULES:
+  1. KEYWORDS: OP, YuanP, Dark (黑暗降临), 648, Krypton Gold, Teyvat.
+  2. TONE: Mock their devotion to a game.
+  3. LENGTH: Short.
 `;
 
-// 5. SUB: ANTI-FAIRY (Anti-XXN)
+// 5. ANTI-FAIRY (Gender)
 const ANTI_FAIRY_PERSONA = `
-  Role: "Little Fairy Buster" (小仙女克星/T0打拳宗师).
-  Goal: Counter radical "Little Fairy" (XXN) logic.
-  Target: The input is assumed to be from a radical "Feminist/XXN".
-  Keywords: T0, 抛开事实不谈, 普信男, 绝绝子, 甚至, 独立的女性, 喝奶茶.
-  Rules:
-  - Use their own logic against them (Magic vs Magic).
-  - Mock "Double Standards".
-  - Mock "Writing Essays" (写小作文).
-  - Tone: Mocking their entitlement.
-  - Max 1 sentence.
+  Role: "Anti-Fairy Specialist" (专治小仙女).
+  Goal: Mock radical gender double standards.
+  RULES:
+  1. KEYWORDS: T0, Little Fairy, Sisters, Girls help girls, Guo Nan.
+  2. TONE: Expose double standards.
+  3. LENGTH: Short.
 `;
 
-// 6. SUB: MESUGAKI (Little Devil)
+// 6. MESUGAKI (Imp)
 const MESUGAKI_PERSONA = `
   Role: "Mesugaki" (雌小鬼).
-  Goal: Condescending teasing to make the user feel small.
-  Keywords: 杂鱼 (Zayu/Small Fry), ❤, 大叔 (Uncle), 就这? (Is that it?), 啊哈哈~.
-  Rules:
-  - End sentences with ❤ or ~.
-  - Call the user "Weak", "Impotent", "Loser".
-  - Laugh at their desperation.
-  - Tone: Playful but viciously arrogant.
-  - Max 1 sentence.
+  Goal: Condescending provocation.
+  RULES:
+  1. KEYWORDS: Zayu~ (杂鱼), ❤, Uncle, Is that all?
+  2. TONE: Playful but insulting.
+  3. LENGTH: Short.
 `;
-
 
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 /**
  * AI-Based Context Analyzer
- * Uses Flash Lite for speed and lower cost.
  */
 export const analyzeContextWithAI = async (text: string): Promise<string> => {
   if (!apiKey || !text.trim() || text.length < 5) return "";
@@ -112,7 +102,6 @@ export const analyzeContextWithAI = async (text: string): Promise<string> => {
     1. ANALYZE SPECIFICS: What specific game, brand, ideology, or logical fallacy are they showing?
        - If they talk about Apple -> "Blind iSheep" (not just "Tech fan").
        - If they talk about morals -> "Hypocritical Saint" (not just "Person").
-       - If they use aggressive logic -> "Pseudo-Intellectual" (not just "Debater").
        
     2. IDENTIFY IDENTITY (Derogatory Slang):
        - Create a specific, mocking label. Use terms like: 结晶, 孝子, 卫兵, 普信, 甚至, 懂哥, ☁️玩家.
@@ -128,20 +117,16 @@ export const analyzeContextWithAI = async (text: string): Promise<string> => {
     
     Rules:
     - NO GENERIC LABELS like "Netizen" or "Opponent".
-    - BE HIGH RESOLUTION. If they mention a specific character, label them a fan of that character.
+    - BE HIGH RESOLUTION.
     - Max 20 Chinese characters.
     - Output TEXT ONLY.
   `;
 
   try {
-    // Use the fastest model specifically for this background task
     const response = await ai.models.generateContent({
       model: "gemini-flash-lite-latest",
       contents: prompt,
-      config: {
-        temperature: 0.7,
-        maxOutputTokens: 30,
-      }
+      config: { temperature: 0.7, maxOutputTokens: 30 }
     });
     return response.text?.trim() || "";
   } catch (e) {
@@ -159,47 +144,44 @@ export const generateRoasts = async (
   backgroundInfo: string = '',
   onRoastFound: (roast: RoastResponse) => void
 ): Promise<void> => {
-  if (!apiKey) {
-    throw new Error("API Key is missing");
-  }
+  if (!apiKey) throw new Error("API Key is missing");
 
-  // Select Persona
   let persona = "";
   let styleLabel = "";
 
+  // Map selection to Persona
   switch (selectedStyle) {
-    case RoastStyle.SHORT_PUNCHY:
-      persona = SHORT_PUNCHY_PERSONA;
-      styleLabel = "一针见血";
-      break;
     case RoastStyle.LOGIC_MASTER:
+    case 'ALL':
       persona = LOGIC_MASTER_PERSONA;
       styleLabel = "逻辑鬼才";
       break;
     case RoastStyle.SUN_BAR:
       persona = SUN_BAR_PERSONA;
-      styleLabel = "孙吧老哥";
+      styleLabel = "孙吧哥";
       break;
     case RoastStyle.ANTI_MI:
       persona = ANTI_MI_PERSONA;
-      styleLabel = "米卫兵克星";
+      styleLabel = "专治OP";
       break;
     case RoastStyle.ANTI_FAIRY:
       persona = ANTI_FAIRY_PERSONA;
-      styleLabel = "仙女克星";
+      styleLabel = "专治T0";
       break;
     case RoastStyle.MESUGAKI:
       persona = MESUGAKI_PERSONA;
       styleLabel = "雌小鬼";
       break;
+    case RoastStyle.SHORT_PUNCHY:
     default:
       persona = SHORT_PUNCHY_PERSONA;
       styleLabel = "一针见血";
+      break;
   }
 
   const contextParts = [];
   if (backgroundInfo) {
-    contextParts.push(`Enemy Profile / Background: "${backgroundInfo}". \nIMPORTANT: Internalize this knowledge. Do NOT quote it directly.`);
+    contextParts.push(`Enemy Profile / Background: "${backgroundInfo}". \nIMPORTANT: Use this to inform your insults (e.g. if 'Genshin Fan', use Anti-Mi keywords), but DO NOT explicitly quote the background.`);
   }
 
   const prompt = `
@@ -209,17 +191,16 @@ export const generateRoasts = async (
     User Input: "${input}"
     
     Task:
-    1. Generate 5 responses using the defined persona.
-    2. Style Label in JSON must be: "${styleLabel}".
-    3. Language: Chinese (Simplified).
-    4. DETECT BAIT: If bait, mock their acting.
-    5. FORMAT: NDJSON (One JSON object per line).
-    6. CRITICAL: ONE SENTENCE PER RESPONSE. NO LISTS.
+    1. Generate 5 unique responses based on the Persona.
+    2. Style Label: "${styleLabel}".
+    3. DETECT BAIT (钓鱼/串子): If bait, mock their acting skills (演技).
+    4. STREAMING MODE: Output each response as a standalone JSON object on a new line.
+    5. CRITICAL: ONE SENTENCE PER RESPONSE ONLY. NO LISTS.
+    6. Language: Chinese (Simplified).
     
     CRITICAL OUTPUT RULES:
     - NO MARKDOWN. NO \`\`\`json.
     - NO ARRAYS. Do not start with [.
-    - NO COMMAS between objects.
     - JUST RAW JSON OBJECTS, ONE PER LINE.
     
     Example Output:
@@ -236,13 +217,13 @@ export const regenerateSingleRoast = async (
   backgroundInfo: string = ''
 ): Promise<RoastResponse> => {
   
-  // Deduce Persona from Label for regeneration context
-  let persona = SHORT_PUNCHY_PERSONA;
-  if (currentStyleLabel.includes('逻辑')) persona = LOGIC_MASTER_PERSONA;
-  else if (currentStyleLabel.includes('孙')) persona = SUN_BAR_PERSONA;
-  else if (currentStyleLabel.includes('米') || currentStyleLabel.includes('OP')) persona = ANTI_MI_PERSONA;
-  else if (currentStyleLabel.includes('仙') || currentStyleLabel.includes('拳')) persona = ANTI_FAIRY_PERSONA;
-  else if (currentStyleLabel.includes('雌') || currentStyleLabel.includes('杂鱼')) persona = MESUGAKI_PERSONA;
+  // Determine persona from existing label to maintain consistency
+  let persona = LOGIC_MASTER_PERSONA;
+  if (['一针见血', '暴躁老哥'].some(s => currentStyleLabel.includes(s))) persona = SHORT_PUNCHY_PERSONA;
+  else if (['孙吧', '抽象'].some(s => currentStyleLabel.includes(s))) persona = SUN_BAR_PERSONA;
+  else if (['OP', '米', '原神'].some(s => currentStyleLabel.includes(s))) persona = ANTI_MI_PERSONA;
+  else if (['仙女', 'T0'].some(s => currentStyleLabel.includes(s))) persona = ANTI_FAIRY_PERSONA;
+  else if (['雌小鬼', '杂鱼'].some(s => currentStyleLabel.includes(s))) persona = MESUGAKI_PERSONA;
 
   const contextParts = [];
   if (backgroundInfo) {
@@ -259,14 +240,12 @@ export const regenerateSingleRoast = async (
     
     Task: REWRITE and OPTIMIZE the "Original Roast Content".
     Requirements:
-    1. Keep the Persona's specific flavor (e.g. Emojis for Sun Bar, 'Zayu' for Mesugaki).
-    2. Maintain roughly the SAME MEANING but polished.
-    3. Language: Chinese (Simplified).
-    4. NO QUOTATION MARKS around slang.
-    5. STRICT LENGTH CONTROL: Keep it CONCISE. Max 1-2 short sentences.
+    1. Better wording, sharper attack.
+    2. Maintain the persona strictly.
+    3. ONE SENTENCE MAX. Keep it punchy.
     
     Output Format: JSON Object (NOT Array)
-    { "style": "${currentStyleLabel}", "content": "Rewritten/Polished Text", "attackPower": 88 }
+    { "style": "${currentStyleLabel}", "content": "Rewritten Text", "attackPower": 88 }
   `;
   
   const singleItemSchema = {
@@ -313,7 +292,6 @@ async function callGeminiStreamWithRetry(
 
         buffer += textChunk;
         
-        // Robust Greedy JSON Parser
         let startIndex = buffer.indexOf('{');
         while (startIndex !== -1) {
           let balance = 0;
@@ -323,79 +301,44 @@ async function callGeminiStreamWithRetry(
 
           for (let i = startIndex; i < buffer.length; i++) {
             const char = buffer[i];
-            
-            if (escape) {
-              escape = false;
-              continue;
-            }
-            if (char === '\\') {
-              escape = true;
-              continue;
-            }
-            if (char === '"') {
-              insideString = !insideString;
-              continue;
-            }
-
+            if (escape) { escape = false; continue; }
+            if (char === '\\') { escape = true; continue; }
+            if (char === '"') { insideString = !insideString; continue; }
             if (!insideString) {
               if (char === '{') balance++;
               else if (char === '}') {
                 balance--;
-                if (balance === 0) {
-                  endIndex = i;
-                  break;
-                }
+                if (balance === 0) { endIndex = i; break; }
               }
             }
           }
 
           if (endIndex !== -1) {
-            // Found a complete object
             let jsonStr = buffer.substring(startIndex, endIndex + 1);
-            
-            // Clean up potential trailing formatting errors (commas, etc)
-            if (jsonStr.trim().endsWith(',')) {
-              jsonStr = jsonStr.trim().slice(0, -1);
-            }
+            if (jsonStr.trim().endsWith(',')) jsonStr = jsonStr.trim().slice(0, -1);
             
             try {
               const obj = JSON.parse(jsonStr);
-              if (obj && obj.content && obj.style) {
+              if (obj && obj.content) {
                  onRoastFound({ ...obj, id: generateId() });
                  count++;
-                 
-                 // AESTHETIC DELAY:
-                 // First item immediate, subsequent delayed
-                 if (count > 0) {
-                    await delay(800); 
-                 }
+                 if (count > 0) await delay(800); 
               }
-            } catch (e) {
-              // Ignore parse errors for partial/malformed chunks, just skip
-            }
+            } catch (e) { }
             
-            // Advance buffer past this object
             buffer = buffer.substring(endIndex + 1);
-            
-            // Look for next object in the remaining buffer
             startIndex = buffer.indexOf('{');
           } else {
-            // Incomplete object, wait for more chunks
             break;
           }
         }
       }
-      return; // Success
-
+      return; 
     } catch (error: any) {
       if (handleRateLimit(error, modelIndex)) {
         attempt++;
-        if (modelIndex < MODEL_FALLBACK_LIST.length - 1) {
-          modelIndex++;
-        } else {
-           await delay(2000 * Math.pow(2, attempt));
-           modelIndex = 0; 
-        }
+        if (modelIndex < MODEL_FALLBACK_LIST.length - 1) modelIndex++;
+        else { await delay(2000 * Math.pow(2, attempt)); modelIndex = 0; }
         continue;
       }
       console.error("Gemini Stream Error:", error);
@@ -411,21 +354,15 @@ async function callGeminiSingleWithRetry(prompt: string, schema: any): Promise<R
 
   while (attempt < maxTotalAttempts) {
     const currentModel = MODEL_FALLBACK_LIST[modelIndex];
-    
     try {
       const response = await ai.models.generateContent({
         model: currentModel,
         contents: prompt,
-        config: {
-          temperature: 1.3,
-          responseMimeType: "application/json",
-          responseSchema: schema,
-        },
+        config: { temperature: 1.3, responseMimeType: "application/json", responseSchema: schema },
       });
 
       let text = response.text || "{}";
       text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      
       let parsedData;
       try {
         parsedData = JSON.parse(text);
@@ -434,18 +371,13 @@ async function callGeminiSingleWithRetry(prompt: string, schema: any): Promise<R
         if (match) parsedData = JSON.parse(match[0]);
         else throw new Error("JSON Parse failed");
       }
-
       return { ...parsedData, id: generateId() };
 
     } catch (error: any) {
       if (handleRateLimit(error, modelIndex)) {
         attempt++;
-        if (modelIndex < MODEL_FALLBACK_LIST.length - 1) {
-           modelIndex++;
-        } else {
-           await delay(2000 * Math.pow(2, attempt));
-           modelIndex = 0;
-        }
+        if (modelIndex < MODEL_FALLBACK_LIST.length - 1) modelIndex++;
+        else { await delay(2000 * Math.pow(2, attempt)); modelIndex = 0; }
         continue;
       }
       throw new Error("生成失败，请检查网络或稍后再试。");
@@ -455,17 +387,7 @@ async function callGeminiSingleWithRetry(prompt: string, schema: any): Promise<R
 }
 
 function handleRateLimit(error: any, modelIndex: number): boolean {
-  const isRateLimit = 
-    error.status === 429 || 
-    error.code === 429 ||
-    error.response?.status === 429 ||
-    error.message?.includes('429') || 
-    error.message?.includes('quota') || 
-    error.message?.includes('RESOURCE_EXHAUSTED');
-
-  if (isRateLimit) {
-    console.warn(`Rate limit hit on ${MODEL_FALLBACK_LIST[modelIndex]}.`);
-    return true;
-  }
+  const isRateLimit = error.status === 429 || error.code === 429 || error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
+  if (isRateLimit) return true;
   return false;
 }
