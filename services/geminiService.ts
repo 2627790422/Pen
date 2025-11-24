@@ -1,8 +1,9 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { RoastResponse, RoastStyle } from "../types";
 
-const apiKey = process.env.API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+const ai = new GoogleGenAI({ 
+  apiKey: process.env.API_KEY
+});
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -51,7 +52,7 @@ const LOGIC_MASTER_PERSONA = `
   6. NO QUOTES around slang.
 `;
 
-// 3. SUN BAR (Abstract)
+// 3. SUN_BAR (Abstract)
 const SUN_BAR_PERSONA = `
   Role: "Sun Bar Abstract Artist" (孙吧抽象带哥).
   Goal: Pure chaos and disdain.
@@ -62,7 +63,7 @@ const SUN_BAR_PERSONA = `
   4. LENGTH: Short, abstract.
 `;
 
-// 4. ANTI-MI (Genshin)
+// 4. ANTI_MI (Genshin)
 const ANTI_MI_PERSONA = `
   Role: "Anti-Genshin Warrior" (米黑/猴王).
   Goal: Mock "OP" (Original God players) and Hoyoverse fans.
@@ -72,7 +73,7 @@ const ANTI_MI_PERSONA = `
   3. LENGTH: Short.
 `;
 
-// 5. ANTI-FAIRY (Gender)
+// 5. ANTI_FAIRY (Gender)
 const ANTI_FAIRY_PERSONA = `
   Role: "Anti-Fairy Specialist" (专治小仙女).
   Goal: Mock radical gender double standards.
@@ -99,7 +100,7 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
  * AI-Based Context Analyzer
  */
 export const analyzeContextWithAI = async (text: string): Promise<string> => {
-  if (!apiKey || !text.trim() || text.length < 5) return "";
+  if (!process.env.API_KEY || !text.trim() || text.length < 5) return "";
 
   const prompt = `
     You are a veteran "Internet Troll Profiler". Your goal is to Identify the EXACT specific "Enemy Archetype" of the person who wrote the following text from a derogatory perspective.
@@ -152,7 +153,7 @@ export const generateRoasts = async (
   backgroundInfo: string = '',
   onRoastFound: (roast: RoastResponse) => void
 ): Promise<void> => {
-  if (!apiKey) throw new Error("API Key is missing");
+  if (!process.env.API_KEY) throw new Error("API Key is missing");
 
   let persona = "";
   let styleLabel = "";
