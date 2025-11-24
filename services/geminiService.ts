@@ -1,9 +1,21 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { RoastResponse, RoastStyle } from "../types";
 
-const ai = new GoogleGenAI({ 
-  apiKey: process.env.API_KEY
+const API_KEY = process.env.API_KEY;
+
+// 1. Primary Client (Google Official)
+const primaryAI = new GoogleGenAI({ 
+  apiKey: API_KEY
 });
+
+// 2. Fallback Client (Reverse Proxy)
+// Strategy: First send to Google, if no response, send to www.yangjiehui.xyz
+const fallbackAI = new GoogleGenAI({ 
+  apiKey: API_KEY,
+  baseUrl: 'https://www.yangjiehui.xyz'
+} as any);
+
+const CLIENTS = [primaryAI, fallbackAI];
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -15,7 +27,6 @@ const MODEL_FALLBACK_LIST = [
 // --- PERSONA DEFINITIONS ---
 
 // 1. TIEBA / ZUAN (Short & Punchy)
-// Focus: Direct Aggression, Humiliation, Emotional Damage.
 const SHORT_PUNCHY_PERSONA = `
   Role: "Vicious Tieba Veteran" (嘴臭极致的贴吧老哥/祖安钢琴家).
   Goal: Inflict MAX EMOTIONAL DAMAGE. Pure humiliation, no mercy.
@@ -37,7 +48,6 @@ const SHORT_PUNCHY_PERSONA = `
 `;
 
 // 2. LOGIC MASTER (Logic Genius)
-// Focus: Colloquial Sarcasm, Metaphors, "Internet Logic".
 const LOGIC_MASTER_PERSONA = `
   Role: "Internet Logic Genius" (逻辑鬼才/阴阳师).
   Goal: Use the opponent's own logic against them using sarcastic metaphors.
@@ -100,7 +110,7 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
  * AI-Based Context Analyzer
  */
 export const analyzeContextWithAI = async (text: string): Promise<string> => {
-  if (!process.env.API_KEY || !text.trim() || text.length < 5) return "";
+  if (!API_KEY || !text.trim() || text.length < 5) return "";
 
   const prompt = `
     You are a veteran "Internet Troll Profiler". Your goal is to Identify the EXACT specific "Enemy Archetype" of the person who wrote the following text from a derogatory perspective.
@@ -131,17 +141,21 @@ export const analyzeContextWithAI = async (text: string): Promise<string> => {
     - Output TEXT ONLY.
   `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-flash-lite-latest",
-      contents: prompt,
-      config: { temperature: 0.7, maxOutputTokens: 30 }
-    });
-    return response.text?.trim() || "";
-  } catch (e) {
-    console.warn("Context analysis failed", e);
-    return "";
+  // Try Primary, then Fallback
+  for (const client of CLIENTS) {
+    try {
+      const response = await client.models.generateContent({
+        model: "gemini-flash-lite-latest",
+        contents: prompt,
+        config: { temperature: 0.7 }
+      });
+      return response.text?.trim() || "";
+    } catch (e) {
+      console.warn(`Context analysis failed with client ${client === primaryAI ? 'Primary' : 'Fallback'}, trying next...`, e);
+      if (client === CLIENTS[CLIENTS.length - 1]) return ""; // All failed
+    }
   }
+  return "";
 };
 
 /**
@@ -153,7 +167,7 @@ export const generateRoasts = async (
   backgroundInfo: string = '',
   onRoastFound: (roast: RoastResponse) => void
 ): Promise<void> => {
-  if (!process.env.API_KEY) throw new Error("API Key is missing");
+  if (!API_KEY) throw new Error("API Key is missing");
 
   let persona = "";
   let styleLabel = "";
@@ -216,7 +230,19 @@ export const generateRoasts = async (
     {"style": "${styleLabel}", "content": "...", "attackPower": 88}
   `;
 
-  await callGeminiStreamWithRetry(prompt, onRoastFound);
+  // Try Primary, then Fallback
+  let lastError;
+  for (const client of CLIENTS) {
+    try {
+      await callGeminiStreamWithRetry(client, prompt, onRoastFound);
+      return; // Success
+    } catch (e: any) {
+      console.warn(`Generate roasts failed with client ${client === primaryAI ? 'Primary' : 'Fallback'}`, e);
+      lastError = e;
+      // Continue to next client
+    }
+  }
+  throw lastError || new Error("生成失败，请检查网络或稍后再试。");
 };
 
 export const regenerateSingleRoast = async (
@@ -268,11 +294,23 @@ export const regenerateSingleRoast = async (
     required: ["style", "content", "attackPower"],
   };
 
-  return await callGeminiSingleWithRetry(prompt, singleItemSchema);
+  // Try Primary, then Fallback
+  let lastError;
+  for (const client of CLIENTS) {
+    try {
+      return await callGeminiSingleWithRetry(client, prompt, singleItemSchema);
+    } catch (e: any) {
+      console.warn(`Regenerate failed with client ${client === primaryAI ? 'Primary' : 'Fallback'}`, e);
+      lastError = e;
+      // Continue to next client
+    }
+  }
+  throw lastError || new Error("刷新失败，请检查网络。");
 }
 
 // --- SHARED RETRY LOGIC FOR STREAMING ---
 async function callGeminiStreamWithRetry(
+  client: GoogleGenAI,
   prompt: string, 
   onRoastFound: (roast: RoastResponse) => void
 ) {
@@ -284,7 +322,7 @@ async function callGeminiStreamWithRetry(
     const currentModel = MODEL_FALLBACK_LIST[modelIndex];
     
     try {
-      const responseStream = await ai.models.generateContentStream({
+      const responseStream = await client.models.generateContentStream({
         model: currentModel,
         contents: prompt,
         config: {
@@ -351,13 +389,17 @@ async function callGeminiStreamWithRetry(
         else { await delay(2000 * Math.pow(2, attempt)); modelIndex = 0; }
         continue;
       }
-      console.error("Gemini Stream Error:", error);
-      throw new Error("生成失败，请检查网络或稍后再试。");
+      // If it's not a rate limit error (e.g. network), throw it so the client-switcher can try the next client
+      throw error;
     }
   }
 }
 
-async function callGeminiSingleWithRetry(prompt: string, schema: any): Promise<RoastResponse> {
+async function callGeminiSingleWithRetry(
+  client: GoogleGenAI, 
+  prompt: string, 
+  schema: any
+): Promise<RoastResponse> {
   let modelIndex = 0;
   let attempt = 0;
   const maxTotalAttempts = 5;
@@ -365,7 +407,7 @@ async function callGeminiSingleWithRetry(prompt: string, schema: any): Promise<R
   while (attempt < maxTotalAttempts) {
     const currentModel = MODEL_FALLBACK_LIST[modelIndex];
     try {
-      const response = await ai.models.generateContent({
+      const response = await client.models.generateContent({
         model: currentModel,
         contents: prompt,
         config: { temperature: 1.3, responseMimeType: "application/json", responseSchema: schema },
@@ -390,7 +432,7 @@ async function callGeminiSingleWithRetry(prompt: string, schema: any): Promise<R
         else { await delay(2000 * Math.pow(2, attempt)); modelIndex = 0; }
         continue;
       }
-      throw new Error("生成失败，请检查网络或稍后再试。");
+      throw error;
     }
   }
   throw new Error("Failed after retries");
